@@ -1,16 +1,18 @@
-// server.js (ES module syntax)
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
+import multer from 'multer';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
+import 'dotenv/config';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Replace <db_password> with your actual password in the connection string
+// MongoDB connection
 const MONGO_URI = 'mongodb+srv://eCellUser:eCell2025@ecell.h6v3ahv.mongodb.net/<dbname>?retryWrites=true&w=majority';
 
-// Connect to MongoDB Atlas
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -18,8 +20,29 @@ mongoose.connect(MONGO_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 
-// Define Mongoose Schemas & Models
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dlppdgqcq',
+  api_key: process.env.CLOUDINARY_API_KEY || '647318345437358',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'l4zd-tEX0QLyB8g_t_rNuxKRnSk',
+});
 
+// Setup multer-storage-cloudinary
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'team-member-images',
+    allowed_formats: ['jpg', 'jpeg', 'png'],
+    transformation: [{ width: 500, height: 500, crop: 'limit' }],
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+});
+
+// Mongoose Schemas and Models (existing unchanged)
 const blogPostSchema = new mongoose.Schema({
   title: String,
   content: String,
@@ -51,7 +74,7 @@ const teamMemberSchema = new mongoose.Schema({
   email: String,
   team: String,
 });
-// Add at top with other schemas
+
 const contactSchema = new mongoose.Schema({
   firstName: String,
   lastName: String,
@@ -67,7 +90,21 @@ const Event = mongoose.model('Event', eventSchema);
 const TeamMember = mongoose.model('TeamMember', teamMemberSchema);
 const Contact = mongoose.model('Contact', contactSchema);
 
-// REST API Routes
+// Upload image endpoint: accepts single file with field name "image"
+app.post('/api/upload-image', upload.single('image'), (req, res) => {
+  try {
+    // multer-storage-cloudinary automatically uploads file and sets file.path to the URL
+    if (!req.file || !req.file.path) {
+      return res.status(400).json({ error: 'No image file uploaded' });
+    }
+    res.json({ imageUrl: req.file.path });
+  } catch (error) {
+    console.error('Image upload error:', error);
+    res.status(500).json({ error: 'Failed to upload image' });
+  }
+});
+
+// Existing REST API routes unchanged
 
 // BlogPosts
 app.get('/api/blogposts', async (req, res) => {
@@ -135,12 +172,12 @@ app.delete('/api/team/:id', async (req, res) => {
   res.json({ message: 'Team member deleted' });
 });
 
+// Contacts
 app.get('/api/contacts', async (req, res) => {
   const contacts = await Contact.find().sort({ submittedAt: -1 });
   res.json(contacts);
 });
 
-// Submit a contact form
 app.post('/api/contacts', async (req, res) => {
   try {
     const contact = new Contact(req.body);
