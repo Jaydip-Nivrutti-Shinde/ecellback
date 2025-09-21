@@ -51,10 +51,21 @@ const teamMemberSchema = new mongoose.Schema({
   email: String,
   team: String,
 });
+// Add at top with other schemas
+const contactSchema = new mongoose.Schema({
+  firstName: String,
+  lastName: String,
+  email: String,
+  phone: String,
+  subject: String,
+  message: String,
+  submittedAt: { type: Date, default: Date.now }
+});
 
 const BlogPost = mongoose.model('BlogPost', blogPostSchema);
 const Event = mongoose.model('Event', eventSchema);
 const TeamMember = mongoose.model('TeamMember', teamMemberSchema);
+const Contact = mongoose.model('Contact', contactSchema);
 
 // REST API Routes
 
@@ -122,6 +133,23 @@ app.put('/api/team/:id', async (req, res) => {
 app.delete('/api/team/:id', async (req, res) => {
   await TeamMember.findByIdAndDelete(req.params.id);
   res.json({ message: 'Team member deleted' });
+});
+
+app.get('/api/contacts', async (req, res) => {
+  const contacts = await Contact.find().sort({ submittedAt: -1 });
+  res.json(contacts);
+});
+
+// Submit a contact form
+app.post('/api/contacts', async (req, res) => {
+  try {
+    const contact = new Contact(req.body);
+    await contact.save();
+    res.status(201).json(contact);
+  } catch (err) {
+    console.error('Error saving contact:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 const PORT = process.env.PORT || 5000;
